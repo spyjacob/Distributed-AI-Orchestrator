@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+    <meta name="theme-color" content="#14161a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Distributed Orchestrator" />
+    <title>Distributed Orchestrator</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="network-gate" role="alertdialog" aria-modal="true" aria-labelledby="network-gate-title">
+      <h2 id="network-gate-title">Checking Tailscale</h2>
+      <p id="network-gate-message">Waiting for this computer’s connection…</p>
+    </div>
+    <header id="bar">
+      <button id="menu" class="tap" aria-label="Projects and sessions" title="Projects and sessions">☰</button>
+      <div id="title">
+        <div id="title-name">Distributed Orchestrator</div>
+        <div id="title-model"><span id="title-sub">pick a session</span><button id="model-gear" class="tap" aria-label="Change model" title="Change provider, model or effort" hidden>⚙</button></div>
+        <div id="header-revision"><!-- serving-revision --></div>
+      </div>
+      <button id="usage" class="tap" aria-label="Usage">📊</button>
+      <button id="gear" class="tap" aria-label="Distributed Orchestrator settings">🔧</button>
+    </header>
+
+    <nav id="session-tabs" aria-label="App sessions" hidden></nav>
+
+    <div id="update-notice" role="status" hidden></div>
+    <div id="ui-reload" role="status" hidden><span>A new version of this page is ready.</span><button class="ghost" id="ui-reload-now">Reload</button></div>
+    <div id="banner" hidden></div>
+
+    <div id="working" hidden>
+      <span class="pulse"></span>
+      <span id="working-label">working</span>
+      <span id="working-time" class="mono"></span>
+    </div>
+
+    <div id="paused" role="status" hidden>
+      <span>Paused</span>
+      <span id="paused-detail">Resume continues the work; queued messages wait.</span>
+      <span class="paused-actions">
+        <button id="paused-checkpoint" class="ghost" hidden title="Read the checkpoint Resume continues from">checkpoint</button>
+        <button id="resume" class="primary">resume</button>
+      </span>
+    </div>
+
+    <main id="transcript">
+      <div class="empty">
+        <p>loading…</p>
+      </div>
+    </main>
+
+    <div id="pending" hidden></div>
+
+
+    <footer id="composer">
+      <div id="composer-message">
+        <section id="provider-interaction" hidden aria-live="polite"></section>
+        <section id="message-pending" hidden aria-live="polite"></section>
+        <textarea id="input" rows="1" placeholder="Describe what to build…" enterkeyhint="send"></textarea>
+      </div>
+      <input id="pick" type="file" accept="image/*,.pdf,.txt,.md,.csv,.json,.html,.xml,.rtf,.docx" multiple hidden />
+      <button id="push-panel" class="ghost attach-btn" aria-label="Review pending changes and push">Push</button>
+      <button id="attach" class="ghost attach-btn" aria-label="Attach a photo">＋</button>
+      <button id="dictate" class="ghost attach-btn" aria-label="Record voice message" title="Dictate a message">🎙</button>
+      <button id="send" class="primary">send</button>
+      <button id="queue" class="primary" hidden title="Run this message after the current turn; Stop cancels it">queue</button>
+      <button id="pause" class="ghost attach-btn" hidden title="Pause now, keep queued messages, resume later">pause</button>
+      <button id="stop" class="danger" hidden>stop</button>
+    </footer>
+
+    <div id="sheet-back" hidden><section id="sheet"></section></div>
+
+    <script src="diagnostics.js"></script>
+    <script src="cluster-client.js"></script>
+    <script src="app.js"></script>
+    <script src="voice.js"></script>
+  </body>
+</html>

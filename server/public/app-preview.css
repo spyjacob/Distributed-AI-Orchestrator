@@ -1,0 +1,9 @@
+.app-preview { display: block; overflow: auto; padding: 12px; }
+.app-preview header, .app-preview nav { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.app-preview header { justify-content: space-between; }
+.app-preview nav a { display: inline-flex; align-items: center; min-height: 44px; }
+.app-preview p { margin: 10px 0; overflow-wrap: anywhere; }
+.app-preview button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+#preview-stage { width: 100%; overflow: hidden; }
+#preview-frame-box { position: relative; margin: auto; }
+#preview-frame { position: absolute; top: 0; left: 0; border: 0; outline: 1px solid var(--line); background: var(--bg-2); transform-origin: top left; }

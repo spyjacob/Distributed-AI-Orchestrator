@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>App preview · The DO</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="app-preview.css"></head>
+<body class="app-preview">
+  <header><strong id="preview-name">App preview</strong><nav aria-label="Preview size"><button class="attach-btn" id="preview-phone">Phone</button><button class="attach-btn" id="preview-desktop">Desktop</button><a id="preview-open" hidden target="_blank" rel="noopener noreferrer">Open app directly</a></nav></header>
+  <p id="preview-status" role="status">Finding the running app…</p>
+  <p class="dim">Fixed viewport preview, scaled to fit. Uses the real app and its data. If embedding is blocked or the frame stays blank, open the app directly.</p>
+  <main id="preview-stage"><div id="preview-frame-box"><iframe id="preview-frame" title="App layout preview" hidden referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals"></iframe></div></main>
+  <script src="diagnostics.js"></script><script src="app-preview.js"></script>
+</body></html>
