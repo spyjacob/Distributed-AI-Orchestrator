@@ -491,6 +491,7 @@ try {
   vm.runInContext(frontend.slice(frontend.indexOf('async function paintGit('), frontend.indexOf('/** Repoint a session')), panel);
   await panel.paintGit(panel.state.session);
   assert.equal(gitNodes.get('g-now').disabled, false, 'busy snapshot does not leave an inert button');
+  assert.match(gitNodes.get('s-git').innerHTML, /Finish the current task before pushing/, 'the sheet says why it is not ready');
   await gitNodes.get('g-now').onclick();
   assert.equal(publishCalls, 1, 'click checks current server state');
   assert.match(gitNodes.get('g-push-status').textContent, /Not published: Finish the current task/);
@@ -498,9 +499,10 @@ try {
   pushBanners.length = 0;
   panel.api = async route => route.startsWith('/api/git/push?')
     ? { ok: true, pushed: true, files: ['app.js'], sha: 'abc123' }
-    : { repo: true, pending: false, busy: false, history: [] };
+    : { repo: true, remote: 'https://example.invalid/project.git', pending: false, busy: false, history: [] };
   await gitNodes.get('g-now').onclick();
   assert.deepEqual(pushBanners, [], 'successful push stays in chat without a banner');
+  assert.match(gitNodes.get('s-git').innerHTML, /Up to date/, 'and the sheet says the project is up to date');
   const state = await a.call('/api/state');
   assert.equal(state.apps.find(app => app.id === '__harness').executionHosts.length, 2);
   const s = await a.call('/api/sessions', 'POST', { appId: '__harness', name: 'remote', mode: 'chat', model: 'model-b', ownerNode: b.status.self });

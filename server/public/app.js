@@ -2964,53 +2964,83 @@ async function paintNotify() {
  */
 function gitSheet() {
   const session = cur().session;
-  openSheet(`<h2>Push changes</h2>
-    <p class="dim">${session ? `This session · ${esc(session.name)}` : 'Open a session to push changes.'}</p>
-    <div id="s-git"></div><div class="actions"><button class="ghost" id="sub-back">‹ edit session</button></div>`);
-  $('sub-back').onclick = sessionSettingsSheet;
-  if (session) paintGit(session);
+  openSheet('<h2>Push changes</h2><div id="s-git"></div>');
+  if (session) { paintGit(session); return; }
+  $('s-git').innerHTML = '<p class="dim">Open a session to push changes.</p><div class="actions"><button class="primary" id="g-close">done</button></div>';
+  $('g-close').onclick = closeSheet;
 }
 
 async function paintGit(session) {
   const box = $('s-git');
   if (!box) return;
-  box.innerHTML = '<p class="dim">Checking changes…</p>';
+  const footer = (push = '') => `<div class="actions push-footer"><button class="ghost" id="sub-back">‹ edit session</button><button class="ghost" id="g-close">close</button>${push}</div>`;
+  const paint = html => {
+    box.innerHTML = html;
+    if ($('sub-back')) $('sub-back').onclick = sessionSettingsSheet;
+    if ($('g-close')) $('g-close').onclick = closeSheet;
+  };
+  paint(`<p class="dim">Checking changes…</p>${footer()}`);
   let g;
   try {
     g = await readPushStatus(session.id, true);
     if (!g || $('s-git') !== box || state.session?.id !== session.id) return;
   } catch (e) {
-    if ($('s-git') === box) box.innerHTML = `<p class="dim warn-text">${esc(e.message)}</p>`;
+    if ($('s-git') !== box) return;
+    paint(`<p class="dim warn-text">${esc(e.message)}</p>${footer()}`);
+    window.harnessTrace?.('visible', {screen:'push-sheet',outcome:'unreadable'});
     return;
   }
 
   const creating = g.repo && !g.remote && g.createRepository;
-  if (!g.repo) {
-    box.innerHTML = `<p class="dim">${esc(shortDir(session.projectDir))} is not a git repository.</p>
-      <label>Connect a remote (creates the repo)</label>
-      <div class="row"><input id="g-remote" placeholder="git@github.com:you/repo.git" spellcheck="false" />
-      <button class="ghost" id="g-connect" style="flex:0 0 80px">connect</button></div>`;
-  } else {
-    box.innerHTML = `
-      ${g.remote || creating ? '' : `<label>Add a remote</label>
-        <div class="row"><input id="g-remote" placeholder="git@github.com:you/repo.git" spellcheck="false" />
-        <button class="ghost" id="g-connect" style="flex:0 0 80px">connect</button></div>`}
-      ${creating ? `<p class="dim">Not on GitHub yet · <strong>${esc(g.repositoryName)}</strong></p>
-        <label for="g-create-visibility">Repository visibility</label>
-        <select id="g-create-visibility"><option value="private">Private · only invited people</option><option value="public">Public · anyone can see the code</option></select>` : ''}
-      <details><summary>Repository settings</summary>
-      <p class="dim">branch <span class="mono">${esc(g.branch ?? '?')}</span>
-        · ${g.changed} uncommitted
-        · ${g.remote ? `remote <span class="mono">${esc(g.remote)}</span>` : '<span class="warn-text">no remote</span>'}</p>
-      ${g.lastCommit ? `<p class="dim">last: <span class="mono">${esc(g.lastCommit)}</span></p>` : '<p class="dim">no commits yet</p>'}
-       ${g.remote ? '<div id="g-vis"></div>' : ''}</details>
-      <div class="actions">${g.isolated ? '<button class="ghost" id="g-merge">Merge latest</button>' : ''}<button class="ghost" id="g-now">${creating ? 'Create repository &amp; push' : 'Push to GitHub'}</button></div>
-      ${g.testing && g.pending ? '<div class="actions"><button class="ghost" id="g-test">Test these changes</button><button class="ghost" id="g-discard">Discard changes</button></div>' : ''}`;
-  }
-
   const testing = g.testing && g.pending ? testingLine(g.testing) : null;
-  box.insertAdjacentHTML('afterbegin', `<div class="item"><div class="grow"><div class="t">${esc(g.projectName || session.name)}</div></div></div><p class="dim">${esc(g.machine || 'This computer')} · ${g.busy ? 'Finish the current task before pushing' : creating ? 'Ready to create on GitHub' : g.pending ? 'Ready to push' : 'Up to date'}<br>${esc(g.summary || 'No pending changes.')}</p>${testing ? `<p class="dim${testing.problem ? ' warn-text' : ''}" id="g-testing">${esc(testing.text)}</p>` : ''}`);
-  box.insertAdjacentHTML('beforeend', `<details><summary>Recent project pushes</summary>${(g.history || []).map(h => `<div class="item machine-item"><div class="grow"><div class="s">${esc(h.machine)} · ${esc(h.status)} · ${clock(h.ts)} · ${esc(h.version || h.sha || '')}${h.error ? ' · ' + esc(h.error) : ''}</div></div></div>`).join('') || '<p class="dim">No pushes yet.</p>'}</details>`);
+  const pushing = Boolean(pushStates.get(session.id)?.pushing);
+  const [shown, tone, headline] = pushing ? ['pushing', 'busy', 'Pushing…']
+    : !g.repo ? ['not-a-repository', 'warn', 'Not a Git repository']
+    : g.busy ? ['busy', 'busy', 'Finish the current task before pushing']
+    : creating ? ['ready-to-create', 'ready', 'Ready to create on GitHub']
+    : !g.remote ? ['no-remote', 'warn', 'No remote to push to']
+    : g.pending ? ['ready', 'ready', 'Ready to push']
+    : ['up-to-date', '', 'Up to date'];
+  const addRemote = label => `<label>${label}</label>
+    <div class="row"><input id="g-remote" placeholder="git@github.com:you/repo.git" spellcheck="false" />
+    <button class="ghost" id="g-connect" style="flex:0 0 80px">connect</button></div>`;
+  const fact = (name, value) => `<div class="push-fact"><span>${name}</span><span>${value}</span></div>`;
+  const testable = g.repo && g.testing && g.pending;
+  const actions = [
+    testable ? '<button class="rowlink" id="g-test">Test these changes</button>' : '',
+    g.repo && g.isolated ? '<button class="rowlink" id="g-merge">Merge latest</button>' : '',
+    testable ? '<button class="rowlink push-danger" id="g-discard">Discard changes</button>' : '',
+  ].join('');
+  paint(`<p class="dim push-where">${[g.projectName, session.name, g.machine || 'This computer'].filter(Boolean).map(esc).join(' · ')}</p>
+    <div class="push-state ${tone}"><span class="act-dot"></span><div>
+      <div class="push-headline">${headline}</div>
+      <div>${g.repo ? esc(g.summary || 'No pending changes.') : esc(shortDir(session.projectDir))}</div>
+      ${creating ? `<div>Not on GitHub yet · <strong>${esc(g.repositoryName)}</strong></div>` : ''}
+      ${testing ? `<div id="g-testing"${testing.problem ? ' class="warn-text"' : ''}>${esc(testing.text)}</div>` : ''}
+    </div></div>
+    ${!g.repo ? addRemote('Connect a remote (creates the repo)') : g.remote || creating ? '' : addRemote('Add a remote')}
+    ${creating ? `<label for="g-create-visibility">Repository visibility</label>
+      <select id="g-create-visibility"><option value="private">Private · only invited people</option><option value="public">Public · anyone can see the code</option></select>` : ''}
+    ${actions ? `<div class="rowlinks push-rows">${actions}</div>` : ''}
+    <div class="rowlinks push-rows">
+      ${g.repo ? `<details class="push-more"><summary id="g-repository">Repository<span class="chev">›</span></summary><div class="push-more-body">
+        ${fact('Branch', `<span class="mono">${esc(g.branch ?? '?')}</span>`)}
+        ${fact('Remote', g.remote ? `<span class="mono">${esc(g.remote)}</span>` : '<span class="warn-text">none</span>')}
+        ${fact('Last commit', g.lastCommit ? `<span class="mono">${esc(g.lastCommit)}</span>` : 'none yet')}
+        ${fact('Uncommitted', `${g.changed} file${g.changed === 1 ? '' : 's'}`)}
+        ${g.remote ? '<div id="g-vis"></div>' : ''}
+      </div></details>` : ''}
+      <details class="push-more"><summary id="g-history">Recent pushes<span class="chev">›</span></summary><div class="push-more-body">
+        ${(g.history || []).map(h => `<div class="push-receipt">
+          <div${h.error ? ' class="warn-text"' : ''}>${[h.status, h.version || h.sha].filter(Boolean).map(esc).join(' · ')}</div>
+          <div class="push-receipt-when">${clock(h.ts)} · ${esc(h.machine)}</div>
+          ${h.error ? `<div class="push-receipt-when">${esc(h.error)}</div>` : ''}
+        </div>`).join('') || '<p class="dim">No pushes yet.</p>'}
+      </div></details>
+    </div>
+    <p id="g-push-status" class="dim" role="status"></p>
+    ${footer(g.repo ? `<button class="ghost" id="g-now">${pushing ? 'Pushing…' : creating ? 'Create repository &amp; push' : 'Push to GitHub'}</button>` : '')}`);
+  window.harnessTrace?.('visible', {screen:'push-sheet',outcome:shown});
   if ($('g-connect')) {
     $('g-connect').onclick = async () => {
       const remote = $('g-remote').value.trim();
@@ -3030,8 +3060,7 @@ async function paintGit(session) {
         if (!visibilityBox) return;
         if (!v.ok) { visibilityBox.innerHTML = `<p class="dim">${esc(v.reason)}</p>`; return; }
         const pub = v.visibility === 'public';
-        visibilityBox.innerHTML = `<p class="dim"><span class="mono">${esc(v.repo)}</span> is
-            <strong class="${pub ? 'warn-text' : ''}">${esc(v.visibility)}</strong></p>
+        visibilityBox.innerHTML = `${fact('Visibility', `<strong class="${pub ? 'warn-text' : ''}">${esc(v.visibility)}</strong>`)}
           <div class="row">
             <button class="ghost${pub ? '' : ' on'}" data-vis="private">private</button>
             <button class="ghost${pub ? ' on' : ''}" data-vis="public">public</button>
@@ -3077,9 +3106,8 @@ async function paintGit(session) {
   if ($('g-now')) {
     // Busy is a snapshot: the task may finish while this sheet stays open.
     // Let the server check it at click time and explain any refusal.
-    $('g-now').disabled = Boolean(pushStates.get(session.id)?.pushing);
+    $('g-now').disabled = pushing;
     $('g-now').classList.toggle('push-pending', Boolean(g.pending));
-    box.insertAdjacentHTML('beforeend', '<p id="g-push-status" class="dim" role="status"></p>');
     if (pushStates.get(session.id)?.pushError) $('g-push-status').textContent = 'Not published: ' + pushStates.get(session.id).pushError;
     $('g-now').onclick = async () => {
       const visibility = $('g-create-visibility')?.value || 'private';
@@ -3100,7 +3128,8 @@ async function paintGit(session) {
       } catch (e) { value.pushError = e.message; showBanner(e.message, true); }
       finally {
         value.pushing = false;
-        if ($('s-git') === box && state.session?.id === session.id) await paintGit(session);
+        // Reopened during the push, the sheet is a new one and still says Pushing…
+        if ($('s-git') && state.session?.id === session.id) await paintGit(session);
         else await refreshPushStatus();
       }
     };
