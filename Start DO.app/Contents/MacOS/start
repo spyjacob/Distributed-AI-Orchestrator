@@ -1,0 +1,18 @@
+#!/bin/sh
+# Finder runs this with no terminal. It finds Node.js and hands over to the
+# launcher every system shares. This app stays in the project folder; to start
+# DO from the Dock, drag it there rather than moving it.
+root=$(cd -- "$(dirname -- "$0")/../../.." && pwd)
+tell() { osascript -e "display dialog \"$1\" with title \"DO\" buttons {\"OK\"} default button 1 with icon caution" >/dev/null 2>&1; }
+if [ ! -f "$root/scripts/launcher.mjs" ]; then
+  tell "Keep Start DO in its project folder. To start DO from the Dock, drag it to the Dock instead of moving it."
+  exit 1
+fi
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+node=$(command -v node) || node=$("${SHELL:-/bin/zsh}" -ilc 'command -v node' 2>/dev/null | tail -n 1)
+if [ -z "$node" ] || [ ! -x "$node" ]; then
+  tell "Install Node.js 22 or newer and Git, then start DO again."
+  exit 1
+fi
+export PATH="$(dirname -- "$node"):$PATH"
+cd -- "$root" && exec "$node" scripts/launcher.mjs --detach

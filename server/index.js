@@ -1842,6 +1842,7 @@ const server = http.createServer(async (req, res) => {
       if (!session.tabWorkspace) return json(res, 409, { error: 'Start an isolated coding turn before integrating changes.' });
       const startedAt = Date.now();
       let publicationResult = null;
+      let answer;
       running.set(id, { controller: new AbortController(), startedAt, executionEpoch: session.executionEpoch || 0 });
       live.set(id, session);
       try {
@@ -1918,7 +1919,7 @@ Preserve both branches' intended behavior. Merge and commit the resolution on th
           ? `Push done · ${result.files?.length || 0} file${result.files?.length === 1 ? '' : 's'} · ${published}.${result.warning ? ' ' + result.warning : ''}${afterPush}`
           : 'Already up to date. Nothing new to push.' }), operation: 'push', outcome: 'success' });
         usageHistory?.record(mergeOnly ? 'merge.finished' : 'push.finished', { correlationId: requestId, outcome: mergeOnly ? 'merged' : 'published', durationMs: Date.now() - startedAt });
-        return json(res, 200, result);
+        answer = [200, result];
       } catch (e) {
         const publication = publicationResult || e.publication;
         const description = publication?.state === 'published' ? `Published ${publication.candidate}; follow-up failed`
@@ -1931,7 +1932,7 @@ Preserve both branches' intended behavior. Merge and commit the resolution on th
         broadcast(id, { kind: 'event', event: note });
         broadcast(id, { kind: 'event', event: reply });
         usageHistory?.record(mergeOnly ? 'merge.finished' : 'push.finished', { correlationId: requestId, outcome: 'failed', durationMs: Date.now() - startedAt });
-        return json(res, 409, { error: `${description}: ${e.message}`, publication });
+        answer = [409, { error: `${description}: ${e.message}`, publication }];
       } finally {
         if (session.turnHost) {
           delete session.turnHost;
@@ -1942,8 +1943,11 @@ Preserve both branches' intended behavior. Merge and commit the resolution on th
         live.delete(id);
         running.delete(id);
         broadcast(id, { kind: 'done' });
-        restartForTestBuild();
       }
+      // Only now: whoever has this answer must find the tab free to try again.
+      const sent = json(res, ...answer);
+      restartForTestBuild();
+      return sent;
     }
 
     // ---- usage: a lookup against the ledger, not a scan of transcripts

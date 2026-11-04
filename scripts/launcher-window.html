@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#14161a" />
+    <title>DO</title>
+    <link rel="icon" href="icon.png" />
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      html, body { height: auto; min-height: 100%; }
+      body { display: block; overflow-y: auto; padding: 18px 16px 22px; }
+      main { max-width: 560px; margin: 0 auto; }
+      .status { display: flex; gap: 14px; align-items: flex-start; padding: 18px 16px;
+        border: 1px solid var(--line); border-radius: 14px; background: var(--bg-2); }
+      .light { flex: 0 0 auto; width: 12px; height: 12px; border-radius: 50%; background: var(--fg-faint); }
+      .status .light { width: 16px; height: 16px; margin-top: 9px; }
+      .on .light, .light.on { background: var(--green); }
+      .busy .light { background: var(--yellow); animation: breathe 1.4s ease-in-out infinite; }
+      .off .light { background: var(--red); }
+      @keyframes breathe { 50% { opacity: 0.35; } }
+      @media (prefers-reduced-motion: reduce) { .busy .light { animation: none; } }
+      h1 { margin: 0; font-size: 26px; line-height: 34px; font-weight: 650; }
+      .status p { margin: 2px 0 0; color: var(--fg-dim); font-size: 14px; overflow-wrap: anywhere; }
+      .actions { margin-top: 12px; }
+      .actions button { width: 100%; }
+      h2 { margin: 22px 0 8px; font-size: 13px; font-weight: 600; color: var(--fg-dim); }
+      .status-note { margin: 0; font-size: 13px; line-height: 1.45; color: var(--fg-dim); overflow-wrap: anywhere; }
+      .warn { margin-top: 12px; color: var(--yellow); }
+      .closing { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); }
+      .item .s { white-space: normal; overflow-wrap: anywhere; }
+      .item .ghost { flex: 0 0 auto; padding: 0 14px; }
+      details { margin-top: 12px; }
+      summary { min-height: 44px; line-height: 44px; color: var(--fg-dim); font-size: 13px; cursor: pointer; }
+      pre { margin: 0; padding: 10px 12px; max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 10px;
+        background: var(--bg-2); color: var(--fg-dim); font: 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="status busy" id="status" role="status" aria-live="polite">
+        <span class="light" aria-hidden="true"></span>
+        <div>
+          <h1 id="headline">Starting…</h1>
+          <p id="detail">Getting ready…</p>
+        </div>
+      </section>
+      <p class="status-note warn" id="chat-busy" hidden></p>
+      <p class="status-note warn" id="problem" hidden></p>
+      <div class="actions">
+        <button class="primary" id="open" hidden>Open DO</button>
+        <button class="primary" id="retry" hidden>Start DO</button>
+        <button class="ghost" id="get-tailscale" hidden>Get Tailscale</button>
+      </div>
+      <details id="details" hidden><summary>What happened</summary><pre id="log"></pre></details>
+      <div id="network" hidden>
+        <h2 id="computers-title">Computers</h2>
+        <div id="computers"></div>
+        <h2 id="viewers-title">Viewers</h2>
+        <div id="viewers"></div>
+        <div id="phone-section">
+          <h2>Phone</h2>
+          <div id="phone"></div>
+        </div>
+      </div>
+      <p class="status-note closing" id="closing">Closing this window stops DO on this computer. Other computers keep running.</p>
+      <div class="actions"><button class="ghost" id="stop" hidden>Stop DO</button></div>
+    </main>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const say = (body) => fetch('action', { method: 'POST', body: JSON.stringify(body) }).catch(() => {});
+      const words = {
+        starting: ['Starting…', 'busy'], online: ['Online', 'on'], waiting: ['Waiting', 'busy'], restarting: ['Restarting…', 'busy'],
+        offline: ['Offline', 'off'], stopping: ['Stopping…', 'busy'], stopped: ['Stopped', 'off'],
+      };
+      function row(on, title, subtitle, extra) {
+        const item = document.createElement('div');
+        item.className = 'item machine-item';
+        const light = document.createElement('span');
+        light.className = `light${on ? ' on' : ''}`;
+        const text = document.createElement('div');
+        text.className = 'grow';
+        const name = document.createElement('div');
+        name.className = 't';
+        name.textContent = title;
+        const about = document.createElement('div');
+        about.className = 's';
+        about.textContent = subtitle;
+        text.append(name, about);
+        item.append(light, text);
+        if (extra) item.append(extra);
+        return item;
+      }
+      function ago(when) {
+        if (!when) return 'never seen';
+        const minutes = Math.round((Date.now() - when) / 60000);
+        if (minutes < 2) return 'seen just now';
+        if (minutes < 120) return `seen ${minutes} minutes ago`;
+        const hours = Math.round(minutes / 60);
+        if (hours < 48) return `seen ${hours} hours ago`;
+        return `seen ${Math.round(hours / 24)} days ago`;
+      }
+      function note(text) {
+        const paragraph = document.createElement('p');
+        paragraph.className = 'status-note';
+        paragraph.textContent = text;
+        return paragraph;
+      }
+      async function copy(text, button) {
+        try {
+          if (window.isSecureContext && navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+          else {
+            const area = document.createElement('textarea');
+            area.value = text;
+            document.body.append(area);
+            area.select();
+            const copied = document.execCommand('copy');
+            area.remove();
+            if (!copied) throw new Error('not copied');
+          }
+          button.textContent = 'Copied';
+          say({ action: 'copied' });
+        } catch { button.textContent = 'Select it above'; }
+        setTimeout(() => { button.textContent = 'Copy'; }, 1800);
+      }
+      let shown = '';
+      function render(view) {
+        const [headline, tone] = words[view.state] || words.offline;
+        const online = view.state === 'online';
+        $('status').className = `status ${tone}`;
+        $('headline').textContent = headline;
+        $('detail').textContent = online ? `${view.computer} · ${view.version}` : view.detail;
+        document.title = `DO · ${headline.replace('…', '')}`;
+        $('open').hidden = !online && !(view.state === 'waiting' && !view.needsTailscale);
+        $('get-tailscale').hidden = !view.needsTailscale || view.state !== 'waiting';
+        $('phone-section').hidden = Boolean(view.needsTailscale);
+        $('retry').hidden = view.state !== 'offline';
+        $('stop').hidden = !online && !['waiting', 'restarting', 'starting'].includes(view.state);
+        $('stop').disabled = false;
+        $('chat-busy').hidden = !(online && view.busy);
+        $('chat-busy').textContent = `A chat is working right now. Closing this ${view.surface} interrupts it.`;
+        $('problem').hidden = !view.problem;
+        $('problem').textContent = view.problem || '';
+        $('details').hidden = !view.log?.length;
+        $('log').textContent = (view.log || []).join('\n');
+        $('closing').textContent = view.state === 'stopped' || view.state === 'offline'
+          ? `DO is not running on this computer.` : `Closing this ${view.surface} stops DO on this computer. Other computers keep running.`;
+        $('network').hidden = !view.hosts?.length || ['offline', 'stopping', 'stopped'].includes(view.state);
+        const onlineCount = view.hosts.filter((host) => host.active).length;
+        $('computers-title').textContent = `Computers · ${onlineCount} of ${view.hosts.length} online`;
+        $('computers').replaceChildren(...view.hosts.map((host) => row(host.active,
+          host.self ? `${host.name} · this computer` : host.name,
+          [host.active ? 'online' : `offline, ${ago(host.lastSeen)}`, host.system, host.main ? 'main' : ''].filter(Boolean).join(' · '))));
+        $('viewers-title').textContent = `Viewers · ${view.viewers.length} connected`;
+        $('viewers').replaceChildren(...(view.viewers.length
+          ? view.viewers.map((viewer) => row(true, viewer.name, viewer.via ? `connected through ${viewer.via}` : 'connected'))
+          : [note('No phones or other devices are connected right now.')]));
+        const phone = view.phone;
+        if (phone?.url) {
+          const button = document.createElement('button');
+          button.className = 'ghost';
+          button.textContent = 'Copy';
+          button.onclick = () => copy(phone.url, button);
+          $('phone').replaceChildren(row(phone.ready, phone.url, phone.message, button));
+        } else $('phone').replaceChildren(note(phone?.message || 'Set this up in DO under Settings → Phone access.'));
+        if (view.state !== shown) { shown = view.state; say({ action: 'shown', state: view.state }); }
+      }
+      $('open').onclick = () => say({ action: 'open' });
+      $('retry').onclick = () => say({ action: 'retry' });
+      $('get-tailscale').onclick = () => say({ action: 'get-tailscale' });
+      $('stop').onclick = () => { $('stop').disabled = true; say({ action: 'stop' }); };
+      let finished = false;
+      const events = new EventSource('events');
+      events.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.focus) return window.focus();
+        finished = data.state === 'stopped';
+        render(data);
+      };
+      // The launcher has gone. There is nothing behind this page any more.
+      events.onerror = () => {
+        if (finished) return;
+        setTimeout(() => {
+          if (finished || events.readyState === EventSource.OPEN) return;
+          $('status').className = 'status off';
+          $('headline').textContent = 'Not connected';
+          $('detail').textContent = 'This window lost contact with its launcher. Close it and start DO again.';
+          document.title = 'DO · Not connected';
+        }, 3000);
+      };
+      addEventListener('pagehide', () => navigator.sendBeacon('action', JSON.stringify({ action: 'closing' })));
+    </script>
+  </body>
+</html>

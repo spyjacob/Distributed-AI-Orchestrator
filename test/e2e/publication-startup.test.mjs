@@ -42,7 +42,7 @@ try {
   // Exercise the real desktop launcher in an isolated source distribution.
   const launcher=path.join(root,'launcher');
   for(const dir of ['scripts','src/core','server','node_modules/cross-spawn','.launcher']) await fs.mkdir(path.join(launcher,dir),{recursive:true});
-  for(const file of ['scripts/start.mjs','scripts/startup-update.mjs','scripts/stop-server.mjs','scripts/dependency-state.mjs','src/core/platform.js']) await fs.copyFile(file,path.join(launcher,file));
+  for(const file of ['scripts/start.mjs','scripts/node-config.mjs','scripts/startup-update.mjs','scripts/stop-server.mjs','scripts/dependency-state.mjs','src/core/platform.js']) await fs.copyFile(file,path.join(launcher,file));
   const lock='{"lockfileVersion":3}';await fs.writeFile(path.join(launcher,'package-lock.json'),lock);
   await fs.writeFile(path.join(launcher,'package.json'),'{"type":"module"}');
   await fs.writeFile(path.join(launcher,'node_modules/cross-spawn/package.json'),'{}');

@@ -1,6 +1,6 @@
 // Stop only this checkout's Node server; never kill an arbitrary port occupant.
 import { execFileSync } from 'node:child_process';
-import { realpathSync } from 'node:fs';
+import { readFileSync, readlinkSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { killTree } from '../src/core/platform.js';
@@ -18,6 +18,11 @@ export function listeners(port) {
       { encoding: 'utf8', timeout: 3000 }).trim().split(/\s+/).filter(Boolean))];
   } catch (e) {
     if (e.status === 1 && !String(e.stdout || '').trim()) return [];
+    // Not every Linux has lsof; ss comes with its basic networking tools.
+    if (e.code === 'ENOENT' && process.platform === 'linux') {
+      const found = execFileSync('ss', ['-ltnpH', `sport = :${Number(port)}`], { encoding: 'utf8', timeout: 3000 });
+      return [...new Set([...found.matchAll(/pid=(\d+)/g)].map((match) => match[1]))];
+    }
     throw e;
   }
 }
@@ -26,6 +31,9 @@ export function listeners(port) {
 function describe(pid) {
   if (process.platform === 'win32') {
     return { command: powershell(`(Get-CimInstance Win32_Process -Filter "ProcessId=${Number(pid)}").CommandLine`), cwd: null };
+  }
+  if (process.platform === 'linux') {
+    return { command: readFileSync(`/proc/${Number(pid)}/cmdline`, 'utf8').split('\0').filter(Boolean), cwd: readlinkSync(`/proc/${Number(pid)}/cwd`) };
   }
   const command = execFileSync('ps', ['-p', pid, '-o', 'command='], { encoding: 'utf8', timeout: 3000 });
   const fields = execFileSync('lsof', ['-a', '-p', pid, '-d', 'cwd', '-Fn'], { encoding: 'utf8', timeout: 3000 });
@@ -46,6 +54,17 @@ export function matchesServer(command, cwd, root) {
       try { const target = realpathSync(path.resolve(cwd || root, arg)); return servers.some((server) => same(target, server)); } catch { return false; }
     });
   } catch { return false; }
+}
+
+/** Whether what listens on this port is this checkout's server and nothing else. */
+export function ownsPort(root, port) {
+  const pids = listeners(port);
+  return pids.length > 0 && pids.every((pid) => {
+    try {
+      const { command, cwd } = describe(pid);
+      return Boolean(cwd || process.platform === 'win32') && matchesServer(command, cwd, root);
+    } catch { return false; }
+  });
 }
 
 export async function stopServer(root, port) {

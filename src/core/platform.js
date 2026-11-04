@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 
 export function defaultDataDir(platform = process.platform, home = os.homedir(), env = process.env) {
   if (platform === 'win32') return path.win32.join(env.LOCALAPPDATA || path.win32.join(home, 'AppData', 'Local'), 'DistributedOrchestrator');
+  if (platform === 'linux') return path.join(env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'distributed-orchestrator');
   return path.join(home, 'Library', 'Application Support', 'harness');
 }
 export function shellCommand(command, platform = process.platform, env = process.env) {

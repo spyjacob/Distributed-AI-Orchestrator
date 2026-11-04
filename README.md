@@ -140,7 +140,7 @@ On each computer:
 - An **AI source**: a signed-in coding CLI, an API key, or a local model through Ollama.
 - **GitHub CLI** if you want to connect GitHub and push changes.
 
-Mac and Windows are supported; Windows does not need WSL. Your computer runs the
+Mac, Windows and Linux are supported; Windows does not need WSL. Your computer runs the
 work, so keep it awake with The DO running when you use your phone.
 
 ## Start your first computer
@@ -153,9 +153,12 @@ work, so keep it awake with The DO running when you use your phone.
    cd Distributed-AI-Orchestrator
    ```
 
-3. Open **start_mac.command** on Mac or **start_windows.cmd** on Windows.
-   The launcher installs dependencies and opens The DO in your browser. Keep its terminal open.
-   You can also run `node scripts/start.mjs` from the repository folder.
+3. Double-click **Start DO** in that folder. On Linux, run **Start DO.sh** once, and after
+   that The DO is in your apps menu. On a Mac, drag it to the Dock to keep it one click away.
+
+   No terminal appears. The first start installs dependencies, then The DO opens in your browser.
+   A small window shows whether it is online and which computers and viewers are connected.
+   **Closing that window stops The DO on this computer.** Other computers keep running.
 4. In **Settings → AI sources**, add the model you want to use.
 5. Open **☰ → new project**, then start a session and describe what you want.
 

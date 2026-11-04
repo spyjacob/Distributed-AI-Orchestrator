@@ -142,6 +142,18 @@ export function urlsFor(app, host) {
   };
 }
 
+/** Not every Linux has lsof; ss comes with its basic networking tools. */
+async function linuxListeners() {
+  const { stdout } = await execAsync('ss -ltnpH', { timeout: 6000 });
+  const found = [];
+  for (const line of stdout.split('\n')) {
+    const port = Number(line.trim().split(/\s+/)[3]?.split(':').pop());
+    if (!Number.isInteger(port)) continue;
+    for (const [, pid] of line.matchAll(/pid=(\d+)/g)) found.push({ pid: Number(pid), port });
+  }
+  return Promise.all(found.map(async (entry) => ({ ...entry, cwd: await fs.readlink(`/proc/${entry.pid}/cwd`).catch(() => null) })));
+}
+
 /**
  * Every listening process on the machine, with the folder it is working in.
  *
@@ -153,6 +165,10 @@ export function urlsFor(app, host) {
  */
 export async function listeningProcesses() {
   if (process.platform === 'win32') return windowsListeners();
+  if (process.platform === 'linux') {
+    const found = await linuxListeners().catch(() => null);
+    if (found) return found;
+  }
   let listeners = '';
   try {
     ({ stdout: listeners } = await execAsync('lsof -nP -iTCP -sTCP:LISTEN -FpPn', { timeout: 6000 }));

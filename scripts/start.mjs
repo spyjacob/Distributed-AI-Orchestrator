@@ -1,37 +1,27 @@
 // Shared first-run path. No shell-specific setup, WSL, or Python dependency.
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import os from 'node:os';
 import { dependencyHash } from './dependency-state.mjs';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { defaultDataDir } from '../src/core/platform.js';
+import { loadNodeConfig } from './node-config.mjs';
 import { stopServer } from './stop-server.mjs';
 import { startupUpdate } from './startup-update.mjs';
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 process.chdir(root);
 const run = (bin, args, options = {}) => new Promise((resolve, reject) => {
-  const child = spawn(bin, args, { stdio: 'inherit', ...options });
+  const child = spawn(bin, args, { stdio: 'inherit', windowsHide: true, ...options });
   child.once('error', reject);
   child.once('exit', (code) => code === 0 ? resolve() : reject(new Error(`${bin} exited with ${code}`)));
 });
 try {
   if (Number(process.versions.node.split('.')[0]) < 22) throw new Error('Install Node.js 22 or newer, then run this launcher again.');
-  await run('git', ['--version']);
-  const config = '.orchestrator-node.env';
-  if (!await fs.stat(config).catch(() => null)) {
-    const values = { HARNESS_PORT: process.env.HARNESS_PORT || '8787', HARNESS_DATA_DIR: process.env.HARNESS_DATA_DIR || defaultDataDir(),
-      ORCHESTRATOR_NODE_NAME: os.hostname() };
-    await fs.writeFile(config, Object.entries(values).map(([k, v]) => `${k}=${JSON.stringify(v.replaceAll('\\', '/'))}`).join('\n') + '\n', { flag: 'wx', mode: 0o600 });
-  }
-  process.loadEnvFile(config);
-  // Preserve explicit authentication. Empty-token mode is local-socket only.
-  const port = Number(process.env.HARNESS_PORT);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('HARNESS_PORT must be a port from 1 to 65535.');
+  await run('git', ['--version']).catch(() => { throw new Error('Install Git, then start DO again.'); });
+  const port = await loadNodeConfig(root);
   const probe = net.createServer();
-  await new Promise((resolve, reject) => { probe.once('error', () => reject(new Error(`Port ${port} is already in use. Stop the existing server or choose another HARNESS_PORT in ${config}.`))); probe.listen(port, '0.0.0.0', resolve); });
+  await new Promise((resolve, reject) => { probe.once('error', () => reject(new Error(`Port ${port} is already in use. Stop the existing server or choose another HARNESS_PORT in .orchestrator-node.env.`))); probe.listen(port, '0.0.0.0', resolve); });
   await new Promise((resolve) => probe.close(resolve));
   await startupUpdate(root);
   const lockHash = await dependencyHash(root);
@@ -42,7 +32,7 @@ try {
     await fs.mkdir('.launcher', { recursive: true });
     await fs.writeFile(stamp, lockHash);
   }
-  const server = spawn(process.execPath, [path.join(root, 'server/boot.js')], { stdio: 'inherit', env: process.env });
+  const server = spawn(process.execPath, [path.join(root, 'server/boot.js')], { stdio: 'inherit', env: process.env, windowsHide: true });
   server.once('error', (e) => { console.error(e.message); process.exitCode = 1; });
   // An in-app restart hands the port to a detached server this window no longer owns.
   // Stay open while it serves, and stop it when the window closes (as the Mac app does on quit).
@@ -67,7 +57,8 @@ try {
       const url = new URL(`http://localhost:${port}/`);
       const response = await fetch(url, { signal: AbortSignal.timeout(1000) });
       if (!response.ok) continue;
-      const command = process.platform === 'win32' ? ['rundll32.exe', ['url.dll,FileProtocolHandler', url.href]] : ['open', [url.href]];
+      const command = process.platform === 'win32' ? ['rundll32.exe', ['url.dll,FileProtocolHandler', url.href]]
+        : process.platform === 'darwin' ? ['open', [url.href]] : ['xdg-open', [url.href]];
       if (!process.argv.includes('--no-browser')) {
         const browser = spawn(command[0], command[1], { stdio: 'ignore' });
         browser.on('error', () => console.error('Open the local URL printed by the server in your browser.'));

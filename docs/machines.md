@@ -127,25 +127,45 @@ This is a new implementation with automated crash/partition/rejoin tests, not a
 claim of production-grade consensus verification. Keep backups. Remote power
 on/off is not implemented.
 
-## Mac and Windows
+## Mac, Windows and Linux
 
 Install Node.js 22+, Git, and the native Tailscale app on the new computer.
 Windows uses Git for Windows and the normal Windows Tailscale application.
 No WSL installation is required. For GitHub authorization install
 GitHub CLI as well. Install the desired model CLIs separately on execution hosts.
 
-Clone your own fork (see the [quick start](../README.md)), then run the entry point in its root:
+Clone your own fork (see the [quick start](../README.md)), then start it from its folder:
 
-| System | Launcher |
+| System | Start DO |
 | --- | --- |
-| Windows | Double-click `start_windows.cmd` |
-| macOS | Double-click `start_mac.command` |
+| macOS | Double-click `Start DO`. Drag it to the Dock to keep it handy; leave the original in the folder. |
+| Windows | Double-click `Start DO.vbs`. |
+| Linux | Run `Start DO.sh` once, from a terminal or with your file manager's "Run as a Program". It adds DO to your apps menu. |
+
+No single file can be double-clicked on all three systems, so each has its own small
+starter. They all run the same launcher, `scripts/launcher.mjs`, as does `npm start`.
 
 The launcher installs npm dependencies on first use, creates a private
 `.orchestrator-node.env` without overwriting existing settings, starts the server,
-and opens the browser with its login token. Keep the terminal window open.
-Port 8787 is the default; if occupied, stop the old server or edit HARNESS_PORT
-in that config. The launcher never kills a process already using the port.
+and opens the browser with its login token. No terminal appears. Instead, a status window
+shows whether DO is online, the computers in your network, the viewers connected to them
+and the phone address. **Closing the window stops DO on this computer;** other computers
+keep running. A reload doesn't stop it, and starting DO again brings the same window forward.
+
+The window comes from the system where it can:
+
+- **macOS** builds its own window once, using the Xcode command line tools
+  (`xcode-select --install`). Without them it uses Chrome, Edge, Chromium or Brave.
+- **Windows and Linux** use a bare Edge, Chrome, Chromium or Brave window.
+- With none of those it opens a browser tab, and closing that tab is what stops DO.
+- **Linux with no desktop** has no window: `Start DO.sh` stays in the terminal and prints
+  each change. Ctrl-C stops DO.
+- **Windows with VBScript turned off** can start the same way with `node scripts\launcher.mjs`.
+
+Port 8787 is the default. If something else is using it, the window says so; stop that
+program or edit HARNESS_PORT in that config. The launcher never stops another program,
+or a copy of DO from another folder. If DO from this folder is already running, the
+window attaches to it, and closing the window still stops it.
 For interactive configuration instead, run `npm run node:setup` followed by
 `npm run node:serve`. The wizard defaults to 8788.
 
@@ -153,7 +173,7 @@ On the new host, open **Machines** and request to join the discovered main
 (this sets up its Tailscale HTTPS address if needed), then approve the request
 on the existing main. Approve Windows Firewall access on your private network if prompted.
 
-The existing Mac desktop launcher remains available. Native Windows process
+Native Windows process
 status uses PowerShell instead of lsof; Windows apps must listen on their assigned
 PORT to be detected reliably.
 Platform-specific project commands still need to be appropriate for that OS.
@@ -163,7 +183,7 @@ Platform-specific project commands still need to be appropriate for that OS.
 Install Tailscale and sign into your own tailnet on each execution host.
 Give nodes distinct names. Use the standard installed client on the host.
 Mac detection tries the Mac app and CLI. Windows tries PATH and the standard
-Program Files installation. A custom installation can explicitly set `ORCHESTRATOR_TAILSCALE_BIN`
+Program Files installation. Linux uses `tailscale` on PATH. A custom installation can explicitly set `ORCHESTRATOR_TAILSCALE_BIN`
 and/or `ORCHESTRATOR_TAILSCALE_SOCKET`; there is no automatic dependency on the
 old `.tailscale-harness` daemon. Users keeping that daemon must explicitly set
 its socket. Changing clients can change the hostname; update phone bookmarks.

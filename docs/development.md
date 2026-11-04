@@ -31,7 +31,7 @@ Main files:
 - `server/public/` — browser UI for desktop and phone.
 - `src/core/` — agents, models, projects, Git, and machine connections.
 - `test/e2e/` — end-to-end tests.
-- `scripts/` — launchers and setup.
+- `scripts/` — the launcher and setup.
 
 ## What goes in this repository
 
@@ -91,6 +91,52 @@ tooltip. Each Push of The DO adds 0.01 right before publishing, so tabs never co
 it and a rejected push leaves no number behind. A tab asks for a larger step by committing
 `minor` (v1.03 to v1.1) or `major` (v1.03 to v2.0) in `.harness-next-version`, which the
 Push uses up.
+
+## The Start DO button and its window
+
+`scripts/launcher.mjs` is the one way in. `Start DO.app` (Mac), `Start DO.vbs` (Windows) and
+`Start DO.sh` (Linux) only find Node and run it; `npm start` runs it directly. It starts
+`scripts/start.mjs`, serves `scripts/launcher-window.html` on a random loopback port behind a
+random key, and polls `/api/harness/status`, `/api/cluster/status` and `/api/network`. Those are
+the only source of what the window says. While Tailscale is off DO refuses most of its API on purpose
+(`TAILSCALE_DISCONNECTED`), so `/api/cluster/status` is what proves it is running, and the window
+says **Waiting** instead of Online.
+
+| System | What shows the page, in order |
+| --- | --- |
+| Mac | `scripts/launcher-window.swift`, built once into `.launcher/DO.app`; a Chrome-family `--app` window; a browser tab |
+| Windows, Linux | an Edge or Chrome-family `--app` window with its own temporary profile; a browser tab |
+| Linux with no desktop | nothing: the launcher stays in the terminal and prints each state |
+
+A window has closed when its process exits, or when the page's `pagehide` beacon is not followed
+by a reconnect within three seconds, so a reload stops nothing. Stopping waits out a restart under way
+(it would bring DO back with no window), ends `start.mjs`'s process group, then uses `stopServer`,
+which also covers a server left by an in-app restart. The launcher attaches to and stops only a server
+from this checkout; it reports anything else on the port and leaves it alone. If a stop fails, the
+window comes back and says why. `.launcher/window.json` keeps it to one launcher per checkout: a
+second one asks the first to bring its window forward, then exits.
+
+**Reading what happened.** `.launcher/trace.jsonl` has one JSON object per line, with `at`,
+`launch`, `version`, `platform` and `event`, up to 256 KB plus one older `.1` file:
+
+- The launcher: `launcher.start`, `launcher.second-click`, `launcher.error`, `apps-menu.failed`.
+- The window: `window.built`, `window.opened`, `window.failed`, `window.exited`, `window.focus`.
+- The page: `page.connected`, and `page.shown` with the `state` it displayed. `page.shown` is the
+  evidence that a state reached the screen; `state` only says the launcher got there.
+- The server: `server.starting`, `server.slow`, `server.attached`, `server.online`, `server.waiting`
+  (`for` Tailscale or other computers), `server.lost`, `server.gone`, `server.failed`, `server.other-copy`.
+- The person: `action.open`, `action.retry`, `action.get-tailscale`, `action.copied`, `open.failed`.
+- Stopping: `stop.started` with its `reason`, `stop.done`, `stop.failed`.
+
+`.launcher/output.log` is what the server printed, with tokens hidden, up to 2 MB plus one older
+file. `.launcher/` is ignored by Git. Neither file records keys, tokens or chat contents.
+
+**Trying a flow.** `test/e2e/launcher.test.mjs` drives the real launcher, server and restarts,
+standing in for the window, including a port held by another program and another copy of DO.
+By hand: `ORCHESTRATOR_LAUNCHER_WINDOW` forces `native`, `browser`, `tab` or `none` (`none` prints
+the address), and `ORCHESTRATOR_LAUNCHER_BROWSER=off` keeps DO from opening in your browser.
+Hold the port with anything else to see the failure path. A launcher started from inside a DO session
+inherits that session's `HARNESS_PORT`, so clear it to avoid pointing at the running DO.
 
 ## Diagnostics
 

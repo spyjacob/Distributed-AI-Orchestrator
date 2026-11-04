@@ -2407,7 +2407,7 @@ async function networkSheet() {
   openSheet(`<h2>Phone access</h2>
     <p class="dim">Install Tailscale on this host and your phone, then sign into the same network. The host must stay awake and running.</p>
     <p><a href="https://tailscale.com/download" target="_blank" rel="noopener">Get Tailscale</a></p>
-    <p class="dim">Mac and Windows: use the installed Tailscale app.</p>
+    <p class="dim">Use the installed Tailscale app.</p>
     <div id="network-status" role="status">Checking connection…</div>
     <div class="actions"><button class="ghost" id="network-check">check again</button><button class="primary" id="network-setup" disabled>set up phone access</button></div>
     <p class="dim">Setup publishes private HTTPS within your Tailscale network. Other Orchestrator hosts in Machines use the same address. Existing routes are preserved. If this server requires an access token, open its new address with that token on your phone.</p>${backToSettings}`);
@@ -2493,7 +2493,7 @@ async function machinesSheet() {
     if (data.mode === 'two-host availability') $('cluster-summary').append(document.createTextNode('. Both hosts may become main during a network split; divergent history is preserved for recovery.'));
     list.innerHTML = data.hosts.map((n) => `<div class="item machine-item"><div class="grow"><div class="t"><span class="computer-badge">🖥 ${n.number}</span> ${esc(n.name)}</div>
       <div class="s">${n.active ? 'active' : 'offline'} · ${n.id === data.leader ? 'main' : 'replica'}${n.id === data.preferred ? ' · preferred main' : ''}</div>
-      <div class="s">${esc(n.platform === 'darwin' ? 'Mac' : n.platform === 'win32' ? 'Windows PC' : n.platform || 'Computer')}</div>
+      <div class="s">${esc(n.platform === 'darwin' ? 'Mac' : n.platform === 'win32' ? 'Windows PC' : n.platform === 'linux' ? 'Linux PC' : n.platform || 'Computer')}</div>
       ${machineAddressLink(n.url)}
       <div class="s">Last contact: ${esc(seen(n.lastSeen))}</div></div>
       ${n.member ? `<button class="ghost" data-machine-name="${esc(n.id)}">rename</button>` : ''}

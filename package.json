@@ -4,7 +4,7 @@
   "description": "The DO (Distributed Orchestrator): develop across machines and models using APIs, subscriptions, and local GPUs, with distributed session history and local diagnostic traces",
   "type": "module",
   "scripts": {
-    "start": "node scripts/launch.mjs",
+    "start": "node scripts/launcher.mjs",
     "test": "node test/run.mjs",
     "serve": "node server/boot.js",
     "node:setup": "node scripts/setup-node.mjs",
